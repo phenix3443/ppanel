@@ -91,6 +91,14 @@ jobs:
           chmod +x ./script/server.sh
           ./script/server.sh --repo "$SERVER_REPO" --tag "$TAG" --force
 
+      - name: Download GeoIP database
+        run: |
+          mkdir -p cache
+          curl -fsSL --retry 5 --retry-delay 2 \
+            -o cache/GeoLite2-City.mmdb \
+            https://raw.githubusercontent.com/adysec/IP_database/main/geolite/GeoLite2-City.mmdb
+          test -s cache/GeoLite2-City.mmdb
+
       - name: List files after download
         run: ls -la .
 

@@ -19,7 +19,7 @@ RUN apt-get update && \
 
 # Create app directories
 WORKDIR /app
-RUN mkdir -p /app/modules /app/etc
+RUN mkdir -p /app/modules /app/etc /app/cache
 
 # Copy gateway binary from host ./bin/gateway-<PLATFORM> -> /app/
 # Copy server binary from ./modules/<PLATFORM>/ppanel-server -> /app/modules/
@@ -34,6 +34,7 @@ COPY --chmod=0755 "modules/${PLATFORM}/ppanel-server" "/app/modules/ppanel-serve
 
 # Mkdir etc if not exists and copy config files
 COPY "ppanel.yaml" "/app/etc/ppanel.yaml"
+COPY "cache/GeoLite2-City.mmdb" "/app/cache/GeoLite2-City.mmdb"
 
 # Ensure permissions
 RUN chmod +x "/app/gateway" || true && \
@@ -46,4 +47,3 @@ EXPOSE 8080
 # Run the gateway binary for the chosen platform. Note: darwin-* binaries will NOT run in a Linux container.
 ENTRYPOINT ["/app/gateway"]
 CMD ["-f", "etc/ppanel.yaml"]
-
