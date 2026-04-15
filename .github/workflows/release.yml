@@ -57,7 +57,7 @@ jobs:
       - name: Run server download script
         run: |
           chmod +x ./script/server.sh
-          ./script/server.sh --repo "$SERVER_REPO" --force
+          ./script/server.sh --repo "$SERVER_REPO" --tag "$TAG" --force
 
       - name: List files after download
         run: ls -la .

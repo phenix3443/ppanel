@@ -1,13 +1,21 @@
 #!/usr/bin/env bash
-# Fetch latest release from GitHub and download/extract platform-specific binaries
-# Usage: script/server.sh [--repo owner/repo] [--dest modules] [--dry-run] [--force]
+# Fetch a GitHub release and download/extract platform-specific binaries
+# Usage: script/server.sh [--repo owner/repo] [--tag release-tag] [--dest modules] [--dry-run] [--force]
 
 set -euo pipefail
 
 REPO_DEFAULT="perfect-panel/server"
 DEST_DIR="modules"
+RELEASE_TAG=""
 DRY_RUN=0
 FORCE=0
+CURL_ARGS=(-sSfL)
+
+if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+  CURL_ARGS+=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+elif [[ -n "${GH_TOKEN:-}" ]]; then
+  CURL_ARGS+=(-H "Authorization: Bearer ${GH_TOKEN}")
+fi
 
 # Platforms to download
 PLATFORMS=("darwin-amd64" "darwin-arm64" "linux-amd64" "linux-arm64")
@@ -17,6 +25,8 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo)
       REPO="$2"; shift 2;;
+    --tag)
+      RELEASE_TAG="$2"; shift 2;;
     --dest)
       DEST_DIR="$2"; shift 2;;
     --dry-run)
@@ -25,7 +35,7 @@ while [[ $# -gt 0 ]]; do
       FORCE=1; shift;;
     -h|--help)
       cat <<USAGE
-Usage: $0 [--repo owner/repo] [--dest modules] [--dry-run] [--force]
+Usage: $0 [--repo owner/repo] [--tag release-tag] [--dest modules] [--dry-run] [--force]
 
 Downloads the latest GitHub release for a repo and extracts binaries for:
   darwin-amd64 darwin-arm64 linux-amd64 linux-arm64
@@ -34,6 +44,7 @@ Default repo: ${REPO_DEFAULT}
 Default dest: ${DEST_DIR}
 
 Options:
+  --tag       Download a specific release tag instead of releases/latest.
   --dry-run   Only list found download URLs without downloading.
   --force     Overwrite existing files in the destination.
 USAGE
@@ -61,11 +72,15 @@ fi
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
-API_URL="https://api.github.com/repos/${REPO}/releases/latest"
+if [[ -n "$RELEASE_TAG" ]]; then
+  API_URL="https://api.github.com/repos/${REPO}/releases/tags/${RELEASE_TAG}"
+else
+  API_URL="https://api.github.com/repos/${REPO}/releases/latest"
+fi
 
-echo "Fetching latest release metadata for ${REPO}..."
+echo "Fetching release metadata for ${REPO}..."
 RELEASE_JSON="$TMPDIR/release.json"
-if ! curl -sSfL "$API_URL" -o "$RELEASE_JSON"; then
+if ! curl "${CURL_ARGS[@]}" "$API_URL" -o "$RELEASE_JSON"; then
   echo "Failed to fetch release metadata from ${API_URL}" >&2
   exit 1
 fi
@@ -128,7 +143,7 @@ for p in "${PLATFORMS[@]}"; do
 
   outpath="$TMPDIR/$fname"
   echo "  Downloading to $outpath..."
-  if ! curl -L --fail --progress-bar -o "$outpath" "$url"; then
+  if ! curl "${CURL_ARGS[@]}" --progress-bar -o "$outpath" "$url"; then
     echo "  Download failed for $url" >&2
     continue
   fi
