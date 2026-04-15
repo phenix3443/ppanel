@@ -9,9 +9,8 @@ on:
         description: "Image tag to publish"
         required: true
       server_repo:
-        description: "Server release repository"
+        description: "Server release repository (optional when vars.SERVER_REPO is set)"
         required: false
-        default: "phenix3443/ppanel-server"
 
 jobs:
   build-and-push:
@@ -31,16 +30,22 @@ jobs:
       - name: Resolve build inputs
         run: |
           TAG="${INPUT_TAG:-${DISPATCH_TAG:-}}"
-          SERVER_REPO="${INPUT_SERVER_REPO:-${DISPATCH_SERVER_REPO:-phenix3443/ppanel-server}}"
+          SERVER_REPO="${INPUT_SERVER_REPO:-${DISPATCH_SERVER_REPO:-${DEFAULT_SERVER_REPO:-}}}"
 
           if [ -z "$TAG" ]; then
             echo "tag is required" >&2
             exit 1
           fi
 
+          if [ -z "$SERVER_REPO" ]; then
+            echo "server_repo is required; provide it via workflow input, repository_dispatch payload, or vars.SERVER_REPO" >&2
+            exit 1
+          fi
+
           echo "TAG=$TAG" >> "$GITHUB_ENV"
           echo "SERVER_REPO=$SERVER_REPO" >> "$GITHUB_ENV"
         env:
+          DEFAULT_SERVER_REPO: ${{ vars.SERVER_REPO }}
           DISPATCH_TAG: ${{ github.event.client_payload.tag }}
           DISPATCH_SERVER_REPO: ${{ github.event.client_payload.server_repo }}
           INPUT_TAG: ${{ inputs.tag }}
