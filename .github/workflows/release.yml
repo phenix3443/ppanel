@@ -9,7 +9,7 @@ on:
         description: "Image tag to publish"
         required: true
       server_repo:
-        description: "Server release repository (optional when vars.SERVER_REPO is set)"
+        description: "Server release repository (optional when auto-detect succeeds)"
         required: false
 
 jobs:
@@ -30,7 +30,7 @@ jobs:
       - name: Resolve build inputs
         run: |
           TAG="${INPUT_TAG:-${DISPATCH_TAG:-}}"
-          SERVER_REPO="${INPUT_SERVER_REPO:-${DISPATCH_SERVER_REPO:-${DEFAULT_SERVER_REPO:-}}}"
+          SERVER_REPO="${INPUT_SERVER_REPO:-${DISPATCH_SERVER_REPO:-}}"
 
           if [ -z "$TAG" ]; then
             echo "tag is required" >&2
@@ -38,14 +38,41 @@ jobs:
           fi
 
           if [ -z "$SERVER_REPO" ]; then
-            echo "server_repo is required; provide it via workflow input, repository_dispatch payload, or vars.SERVER_REPO" >&2
+            OWNER="${GITHUB_REPOSITORY_OWNER}"
+            CANDIDATES=(
+              "${OWNER}/ppanel-server"
+              "${OWNER}/server"
+            )
+
+            if [ "$OWNER" != "perfect-panel" ]; then
+              CANDIDATES+=("perfect-panel/server")
+            fi
+
+            for candidate in "${CANDIDATES[@]}"; do
+              status_code="$(
+                curl -sS -o /dev/null -w "%{http_code}" \
+                  -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+                  -H "Accept: application/vnd.github+json" \
+                  "https://api.github.com/repos/${candidate}/releases/tags/${TAG}"
+              )"
+
+              if [ "$status_code" = "200" ]; then
+                SERVER_REPO="$candidate"
+                break
+              fi
+            done
+          fi
+
+          if [ -z "$SERVER_REPO" ]; then
+            echo "server_repo is required; no matching release tag '${TAG}' was found in auto-detect candidates" >&2
             exit 1
           fi
 
           echo "TAG=$TAG" >> "$GITHUB_ENV"
           echo "SERVER_REPO=$SERVER_REPO" >> "$GITHUB_ENV"
         env:
-          DEFAULT_SERVER_REPO: ${{ vars.SERVER_REPO }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
           DISPATCH_TAG: ${{ github.event.client_payload.tag }}
           DISPATCH_SERVER_REPO: ${{ github.event.client_payload.server_repo }}
           INPUT_TAG: ${{ inputs.tag }}
