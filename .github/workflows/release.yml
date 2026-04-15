@@ -3,6 +3,15 @@ name: Release
 on:
   repository_dispatch:
     types: [trigger-build]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag to publish"
+        required: true
+      server_repo:
+        description: "Server release repository"
+        required: false
+        default: "phenix3443/ppanel-server"
 
 jobs:
   build-and-push:
@@ -12,14 +21,30 @@ jobs:
       contents: read
       packages: write
       id-token: write
+    env:
+      IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/ppanel
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Get tag from dispatch payload
+      - name: Resolve build inputs
         run: |
-          echo "TAG=${{ github.event.client_payload.tag }}" >> $GITHUB_ENV
+          TAG="${INPUT_TAG:-${DISPATCH_TAG:-}}"
+          SERVER_REPO="${INPUT_SERVER_REPO:-${DISPATCH_SERVER_REPO:-phenix3443/ppanel-server}}"
+
+          if [ -z "$TAG" ]; then
+            echo "tag is required" >&2
+            exit 1
+          fi
+
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "SERVER_REPO=$SERVER_REPO" >> "$GITHUB_ENV"
+        env:
+          DISPATCH_TAG: ${{ github.event.client_payload.tag }}
+          DISPATCH_SERVER_REPO: ${{ github.event.client_payload.server_repo }}
+          INPUT_TAG: ${{ inputs.tag }}
+          INPUT_SERVER_REPO: ${{ inputs.server_repo }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
@@ -32,16 +57,17 @@ jobs:
       - name: Run server download script
         run: |
           chmod +x ./script/server.sh
-          ./script/server.sh
+          ./script/server.sh --repo "$SERVER_REPO" --force
 
       - name: List files after download
         run: ls -la .
 
-      - name: Log in to Docker Hub
+      - name: Log in to GHCR
         uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push multi-platform image
         uses: docker/build-push-action@v5
@@ -51,11 +77,11 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ppanel/ppanel:${{ env.TAG }}
-            ppanel/ppanel:latest
+            ${{ env.IMAGE_NAME }}:${{ env.TAG }}
+            ${{ env.IMAGE_NAME }}:latest
 
       - name: Image push info
         run: |
           echo "Pushed images:"
-          echo "  ppanel/ppanel:${{ env.TAG }}"
-          echo "  ppanel/ppanel:latest"
+          echo "  $IMAGE_NAME:${TAG}"
+          echo "  $IMAGE_NAME:latest"
