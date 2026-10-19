@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Build the gateway binaries from the reverse-engineered, behavior-compatible
-# source in phenix3443/ppanel-gateway (reconstructed/). Replaces what used to be
-# the upstream closed-source prebuilt binaries. See README.md.
+# Build the gateway binaries from the behavior-compatible source in
+# phenix3443/ppanel-gateway. Replaces what used to be the upstream closed-source
+# prebuilt binaries. See README.md.
 #
 # Usage:
-#   ./build-gateway.sh [/path/to/ppanel-gateway/reconstructed]
+#   ./build-gateway.sh [/path/to/ppanel-gateway]
 # With no argument, a shallow clone of ppanel-gateway is used.
 set -euo pipefail
 
@@ -17,7 +17,7 @@ if [[ -z "$SRC" ]]; then
   CLEANUP="$tmp"
   echo "cloning phenix3443/ppanel-gateway ..."
   git clone --depth 1 https://github.com/phenix3443/ppanel-gateway.git "$tmp/ppanel-gateway"
-  SRC="$tmp/ppanel-gateway/reconstructed"
+  SRC="$tmp/ppanel-gateway"
 fi
 trap '[[ -n "$CLEANUP" ]] && rm -rf "$CLEANUP"' EXIT
 
